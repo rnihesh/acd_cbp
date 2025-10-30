@@ -1,0 +1,50 @@
+/* Mermaid diagram styling */
+.mermaid-container svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-container .node rect,
+.mermaid-container .node circle,
+.mermaid-container .node polygon {
+  stroke-width: 2px;
+  transition: all 0.2s ease;
+}
+
+.mermaid-container .node:hover rect,
+.mermaid-container .node:hover circle,
+.mermaid-container .node:hover polygon {
+  filter: brightness(1.1);
+  transform: scale(1.02);
+}
+
+.mermaid-container .edgePath path {
+  stroke-width: 2px;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
