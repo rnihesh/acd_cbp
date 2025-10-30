@@ -39,13 +39,32 @@ export default function TreeVisualizer({ mermaidCode, onNodeClick }) {
               node.style.cursor = "pointer";
               node.addEventListener("click", () => {
                 const text = node.textContent;
-                onNodeClick({ text });
+                // Extract node type from text (format: "Type [operator]" or "Type (name)" or just "Type")
+                let type = text.split(/[\[\(]/)[0].trim();
+
+                // Extract operator if present
+                const operatorMatch = text.match(/\[([^\]]+)\]/);
+                const operator = operatorMatch ? operatorMatch[1] : undefined;
+
+                // Extract name if present
+                const nameMatch = text.match(/\(([^\)]+)\)/);
+                const name = nameMatch ? nameMatch[1] : undefined;
+
+                const nodeData = {
+                  text,
+                  type,
+                  operator,
+                  name,
+                };
+
+                console.log("🔍 Clicked node:", nodeData);
+                onNodeClick(nodeData);
               });
             });
           }
         })
         .catch((error) => {
-          console.error("Mermaid rendering error:", error);
+          // Silently handle mermaid rendering errors
           containerRef.current.innerHTML = `<div class="text-red-600 p-4">Error rendering tree: ${error.message}</div>`;
         });
     }

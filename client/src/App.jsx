@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import CodeEditor from "./components/CodeEditor";
 import TreeVisualizer from "./components/TreeVisualizer";
 import GrammarRules from "./components/GrammarRules";
@@ -22,9 +22,16 @@ function App() {
   const [aiStatus, setAiStatus] = useState(null);
   const [currentCode, setCurrentCode] = useState("");
 
+  // Ref to track streaming text without causing re-renders
+  const streamingTextRef = useRef("");
+  const streamingProviderRef = useRef("");
+  const explanationUpdateKey = useRef(0);
+
   // Check AI status on mount
   useEffect(() => {
-    getAIStatus().then(setAiStatus).catch(console.error);
+    getAIStatus()
+      .then(setAiStatus)
+      .catch(() => {});
   }, []);
 
   // Apply dark mode
@@ -60,53 +67,130 @@ function App() {
 
   const handleNodeClick = async (node) => {
     setAiLoading(true);
-    setExplanation(null);
+    streamingTextRef.current = "";
+    streamingProviderRef.current = "connecting";
+    explanationUpdateKey.current++;
 
-    try {
-      const result = await explainNode(node, currentCode);
-      setExplanation(result);
-    } catch (err) {
-      setExplanation({
-        success: false,
-        error: err.response?.data?.error || err.message,
-      });
-    } finally {
-      setAiLoading(false);
-    }
+    // Set initial state - this will trigger ONE render to show the panel
+    setExplanation({
+      success: true,
+      provider: "connecting",
+      text: "",
+      streaming: true,
+      updateKey: explanationUpdateKey.current,
+    });
+
+    explainNode(
+      node,
+      currentCode,
+      // onChunk - accumulate in ref, NO state updates during streaming
+      (chunk, provider) => {
+        streamingTextRef.current += chunk;
+        streamingProviderRef.current = provider || "connecting";
+        // Don't call setExplanation here - avoid re-renders
+      },
+      // onComplete - single state update with final text
+      (fullText, provider) => {
+        explanationUpdateKey.current++;
+        setExplanation({
+          success: true,
+          provider: provider || "unknown",
+          text: fullText,
+          streaming: false,
+          updateKey: explanationUpdateKey.current,
+        });
+        setAiLoading(false);
+      },
+      // onError
+      (error) => {
+        setExplanation({ success: false, error });
+        setAiLoading(false);
+      }
+    );
   };
 
   const handleExplainGrammar = async (rules, code) => {
     setAiLoading(true);
-    setExplanation(null);
+    streamingTextRef.current = "";
+    streamingProviderRef.current = "connecting";
+    explanationUpdateKey.current++;
 
-    try {
-      const result = await explainGrammar(rules, code);
-      setExplanation(result);
-    } catch (err) {
-      setExplanation({
-        success: false,
-        error: err.response?.data?.error || err.message,
-      });
-    } finally {
-      setAiLoading(false);
-    }
+    setExplanation({
+      success: true,
+      provider: "connecting",
+      text: "",
+      streaming: true,
+      updateKey: explanationUpdateKey.current,
+    });
+
+    explainGrammar(
+      rules,
+      code,
+      // onChunk - accumulate in ref
+      (chunk, provider) => {
+        streamingTextRef.current += chunk;
+        streamingProviderRef.current = provider || "connecting";
+      },
+      // onComplete
+      (fullText, provider) => {
+        explanationUpdateKey.current++;
+        setExplanation({
+          success: true,
+          provider: provider || "unknown",
+          text: fullText,
+          streaming: false,
+          updateKey: explanationUpdateKey.current,
+        });
+        setAiLoading(false);
+      },
+      // onError
+      (error) => {
+        setExplanation({ success: false, error });
+        setAiLoading(false);
+      }
+    );
   };
 
   const handleFixError = async (code, errorMsg) => {
     setAiLoading(true);
-    setExplanation(null);
+    streamingTextRef.current = "";
+    streamingProviderRef.current = "connecting";
+    explanationUpdateKey.current++;
 
-    try {
-      const result = await detectErrors(code, errorMsg);
-      setExplanation(result);
-    } catch (err) {
-      setExplanation({
-        success: false,
-        error: err.response?.data?.error || err.message,
-      });
-    } finally {
-      setAiLoading(false);
-    }
+    setExplanation({
+      success: true,
+      provider: "connecting",
+      text: "",
+      streaming: true,
+      updateKey: explanationUpdateKey.current,
+    });
+
+    detectErrors(
+      code,
+      errorMsg,
+      // onChunk
+      (chunk, provider) => {
+        streamingTextRef.current += chunk;
+        streamingProviderRef.current = provider || "connecting";
+      },
+      // onComplete
+      (fullText, provider) => {
+        explanationUpdateKey.current++;
+        setExplanation({
+          success: true,
+          provider: provider || "unknown",
+          text: fullText,
+          streaming: false,
+          updateKey: explanationUpdateKey.current,
+        });
+        setAiLoading(false);
+      },
+      // onError
+      (error) => {
+        setExplanation({ success: false, error });
+        setAiLoading(false);
+      }
+    );
   };
 
   return (
@@ -186,6 +270,8 @@ function App() {
               explanation={explanation}
               loading={aiLoading}
               onClose={() => setExplanation(null)}
+              streamingTextRef={streamingTextRef}
+              streamingProviderRef={streamingProviderRef}
             />
           </div>
         </div>

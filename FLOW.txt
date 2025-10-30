@@ -1,0 +1,285 @@
+═══════════════════════════════════════════════════════════════
+  AI-BASED SYNTAX TREE VISUALIZER - FLOW DOCUMENTATION
+═══════════════════════════════════════════════════════════════
+
+═══════════════════════════════════════════════════════════════
+  PART 1: WHAT HAPPENS WITHOUT AI (Core Functionality)
+═══════════════════════════════════════════════════════════════
+
+1. USER ENTERS CODE
+   ┌─────────────────────────────────┐
+   │  User types: if (x < y) x = y;  │
+   │  In CodeEditor component         │
+   └─────────────────────────────────┘
+                  ↓
+   - Code stored in React state
+   - No network calls yet
+   - Just local input handling
+
+2. USER CLICKS "PARSE & VISUALIZE"
+   ┌──────────────────────────────────────────┐
+   │  Frontend sends POST /api/parse request  │
+   │  Body: { code: "if (x < y) x = y;" }    │
+   └──────────────────────────────────────────┘
+                  ↓
+   ┌────────────────────────────────────────────────┐
+   │  SERVER RECEIVES REQUEST                       │
+   │  - Logs: "📝 Parsing code (17 chars...)"      │
+   │  - NO AI involved yet                          │
+   └────────────────────────────────────────────────┘
+
+3. BABEL PARSER PROCESSES CODE
+   ┌───────────────────────────────────────────────────┐
+   │  @babel/parser.parse(code) is called              │
+   │  - This is a PURE JAVASCRIPT operation            │
+   │  - NO AI, NO external APIs                        │
+   │  - Converts code → Abstract Syntax Tree (AST)     │
+   └───────────────────────────────────────────────────┘
+                  ↓
+   Example AST generated:
+   {
+     type: "File",
+     program: {
+       type: "Program",
+       body: [{
+         type: "IfStatement",
+         test: {
+           type: "BinaryExpression",
+           operator: "<",
+           left: { type: "Identifier", name: "x" },
+           right: { type: "Identifier", name: "y" }
+         },
+         consequent: {
+           type: "ExpressionStatement",
+           expression: {
+             type: "AssignmentExpression",
+             operator: "=",
+             left: { type: "Identifier", name: "x" },
+             right: { type: "Identifier", name: "y" }
+           }
+         }
+       }]
+     }
+   }
+
+4. AST SIMPLIFICATION
+   ┌────────────────────────────────────────────────┐
+   │  simplifyAST(ast) function runs                │
+   │  - Removes metadata (loc, start, end, extra)   │
+   │  - Keeps only: type, operator, name, value     │
+   │  - Organizes children for tree visualization   │
+   │  - PURE JAVASCRIPT, NO AI                      │
+   └────────────────────────────────────────────────┘
+                  ↓
+   Simplified structure:
+   {
+     type: "IfStatement",
+     children: [
+       {
+         type: "BinaryExpression",
+         operator: "<",
+         label: "test",
+         children: [...]
+       },
+       {
+         type: "ExpressionStatement",
+         label: "consequent",
+         children: [...]
+       }
+     ]
+   }
+
+5. MERMAID DIAGRAM GENERATION
+   ┌────────────────────────────────────────────────┐
+   │  generateMermaidTree(ast) function runs        │
+   │  - Traverses simplified AST                    │
+   │  - Generates Mermaid syntax (string)           │
+   │  - NO AI, just string building                 │
+   └────────────────────────────────────────────────┘
+                  ↓
+   Output Mermaid code:
+   ```
+   graph TD
+   node0["IfStatement"]
+   node1["BinaryExpression [<]"]
+   node0 -->|test| node1
+   node2["Identifier (x)"]
+   node1 -->|left| node2
+   node3["Identifier (y)"]
+   node1 -->|right| node3
+   node4["ExpressionStatement"]
+   node0 -->|consequent| node4
+   ...
+   ```
+
+6. GRAMMAR RULES EXTRACTION
+   ┌────────────────────────────────────────────────┐
+   │  extractGrammarRules(ast) function runs        │
+   │  - Maps AST node types → CFG rules             │
+   │  - Example: IfStatement → Grammar rule         │
+   │  - NO AI, just lookup table                    │
+   └────────────────────────────────────────────────┘
+                  ↓
+   Extracted rules:
+   [
+     "IfStatement → if ( Expression ) Statement [ else Statement ]",
+     "BinaryExpression → Expression Operator Expression",
+     "AssignmentExpression → Identifier = Expression",
+     "ExpressionStatement → Expression ;"
+   ]
+
+7. SERVER SENDS RESPONSE
+   ┌────────────────────────────────────────────────┐
+   │  Response JSON to frontend:                    │
+   │  {                                             │
+   │    success: true,                              │
+   │    ast: { ... full AST ... },                  │
+   │    simplified: { ... simplified ... },         │
+   │    mermaid: "graph TD\nnode0[...]...",         │
+   │    grammarRules: ["IfStatement → ...", ...]    │
+   │  }                                             │
+   │  - Logs: "✅ Parsing successful..."           │
+   │  - Logs: "📚 Extracted 4 grammar rules"       │
+   └────────────────────────────────────────────────┘
+
+8. FRONTEND RECEIVES & RENDERS
+   ┌────────────────────────────────────────────────┐
+   │  React state updates:                          │
+   │  - parseResult = response                      │
+   │  - TreeVisualizer receives mermaid code        │
+   │  - GrammarRules receives rules array           │
+   └────────────────────────────────────────────────┘
+                  ↓
+   ┌────────────────────────────────────────────────┐
+   │  MERMAID.JS RENDERS THE DIAGRAM                │
+   │  - Browser-side rendering library              │
+   │  - Converts Mermaid syntax → SVG              │
+   │  - Creates interactive tree visualization      │
+   │  - NO AI, NO server calls                      │
+   └────────────────────────────────────────────────┘
+                  ↓
+   ┌────────────────────────────────────────────────┐
+   │  USER SEES:                                    │
+   │  ✅ Interactive tree diagram                   │
+   │  ✅ Grammar rules displayed                    │
+   │  ✅ Clickable nodes                            │
+   │  - All without ANY AI involvement!             │
+   └────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════
+  PART 2: WHAT HAPPENS WITH AI (Enhancement Features)
+═══════════════════════════════════════════════════════════════
+
+9. USER CLICKS ON A NODE (e.g., "BinaryExpression")
+   ┌────────────────────────────────────────────────┐
+   │  Frontend calls explainNode()                  │
+   │  - Sends node info: { type, operator, etc }    │
+   │  - Uses Server-Sent Events (SSE) streaming     │
+   └────────────────────────────────────────────────┘
+                  ↓
+   ┌────────────────────────────────────────────────┐
+   │  SERVER: POST /api/explain-node (STREAMING)    │
+   │  - Logs: "🤖 AI: Explaining node type..."     │
+   │  - Sets SSE headers                            │
+   └────────────────────────────────────────────────┘
+                  ↓
+   ┌────────────────────────────────────────────────┐
+   │  AI SERVICE: Check Ollama availability         │
+   │  - GET http://localhost:11434/api/tags         │
+   │  - Logs: "🔍 Checking Ollama..."              │
+   │  - If available → Use Ollama                   │
+   │  - If not → Fallback to Gemini                 │
+   └────────────────────────────────────────────────┘
+
+10. OLLAMA STREAMING (if available)
+   ┌────────────────────────────────────────────────┐
+   │  POST http://localhost:11434/api/generate      │
+   │  {                                             │
+   │    model: "llama3.2",                          │
+   │    prompt: "Explain this AST node...",         │
+   │    stream: true  ← STREAMING ENABLED           │
+   │  }                                             │
+   └────────────────────────────────────────────────┘
+                  ↓
+   ┌────────────────────────────────────────────────┐
+   │  OLLAMA SENDS CHUNKS:                          │
+   │  Chunk 1: "This "                              │
+   │  Chunk 2: "is "                                │
+   │  Chunk 3: "a Binary"                           │
+   │  Chunk 4: "Expression..."                      │
+   │  Each chunk → Server → Frontend → User sees    │
+   │  - Logs: "🦙 Using Ollama (streaming)..."     │
+   └────────────────────────────────────────────────┘
+
+11. GEMINI STREAMING (if Ollama unavailable)
+   ┌────────────────────────────────────────────────┐
+   │  Uses Google Generative AI SDK                 │
+   │  model.generateContentStream(prompt)           │
+   │  - Logs: "✨ Using Gemini (streaming)..."     │
+   │  - Streams response chunks                     │
+   └────────────────────────────────────────────────┘
+
+12. FRONTEND RECEIVES STREAM
+   ┌────────────────────────────────────────────────┐
+   │  SSE Events:                                   │
+   │  data: {"type":"provider","provider":"ollama"} │
+   │  data: {"type":"chunk","text":"This "}         │
+   │  data: {"type":"chunk","text":"is "}           │
+   │  data: {"type":"chunk","text":"a Binary"}      │
+   │  data: {"type":"done","fullText":"..."}        │
+   └────────────────────────────────────────────────┘
+                  ↓
+   ┌────────────────────────────────────────────────┐
+   │  REACT STATE UPDATES IN REAL-TIME              │
+   │  - Each chunk appends to text                  │
+   │  - User sees text appearing word-by-word       │
+   │  - "Streaming..." indicator shows              │
+   │  - ReactMarkdown renders formatted text        │
+   └────────────────────────────────────────────────┘
+
+13. GRAMMAR EXPLANATION (Similar flow)
+   ┌────────────────────────────────────────────────┐
+   │  User clicks "🤖 Explain Grammar with AI"     │
+   │  → POST /api/explain-grammar (STREAMING)       │
+   │  → Same Ollama/Gemini fallback                 │
+   │  → Streams explanation of CFG rules            │
+   └────────────────────────────────────────────────┘
+
+14. ERROR FIXING (Similar flow)
+   ┌────────────────────────────────────────────────┐
+   │  If syntax error detected                      │
+   │  → User clicks "🤖 Get AI Help to Fix"        │
+   │  → POST /api/detect-errors (STREAMING)         │
+   │  → AI analyzes error & suggests fix            │
+   │  → Streams corrected code + explanation        │
+   └────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════
+  SUMMARY: CORE vs AI-ENHANCED
+═══════════════════════════════════════════════════════════════
+
+WITHOUT AI (Always Works):
+✅ Code parsing with Babel
+✅ AST generation & simplification
+✅ Mermaid tree visualization
+✅ Grammar rules extraction
+✅ Interactive tree navigation
+✅ Error detection (basic)
+
+WITH AI (Optional Enhancement):
+🤖 Node explanations (streaming)
+🤖 Grammar rule explanations (streaming)
+🤖 Syntax error fixes (streaming)
+🤖 Educational insights
+🤖 Real-time text streaming
+
+STREAMING BENEFITS:
+⚡ See AI response as it's generated
+⚡ No waiting for full response
+⚡ Better UX (feels faster)
+⚡ Works with both Ollama & Gemini
+⚡ Markdown rendering in real-time
+
+═══════════════════════════════════════════════════════════════

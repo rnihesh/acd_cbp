@@ -31,29 +31,79 @@ class AIService {
   }
 
   /**
-   * Get explanation using Ollama
+   * Get explanation using Ollama with streaming
    */
-  async explainWithOllama(prompt) {
+  async explainWithOllamaStream(prompt, res) {
     try {
-      console.log(`🦙 Using Ollama (model: ${this.ollamaModel})...`);
+      console.log(
+        `🦙 Using Ollama with streaming (model: ${this.ollamaModel})...`
+      );
+
       const response = await axios.post(
         `${this.ollamaUrl}/api/generate`,
         {
           model: this.ollamaModel,
           prompt: prompt,
-          stream: false,
+          stream: true,
         },
-        { timeout: 30000 }
+        {
+          timeout: 60000,
+          responseType: "stream",
+        }
       );
 
-      console.log(
-        `✅ Ollama response received (${response.data.response.length} chars)`
+      // Set headers for SSE
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      // Send provider info
+      res.write(
+        `data: ${JSON.stringify({ type: "provider", provider: "ollama" })}\n\n`
       );
-      return {
-        success: true,
-        provider: "ollama",
-        text: response.data.response,
-      };
+
+      let fullText = "";
+
+      response.data.on("data", (chunk) => {
+        const lines = chunk
+          .toString()
+          .split("\n")
+          .filter((line) => line.trim());
+
+        for (const line of lines) {
+          try {
+            const parsed = JSON.parse(line);
+            if (parsed.response) {
+              fullText += parsed.response;
+              res.write(
+                `data: ${JSON.stringify({
+                  type: "chunk",
+                  text: parsed.response,
+                })}\n\n`
+              );
+            }
+            if (parsed.done) {
+              console.log(
+                `✅ Ollama streaming complete (${fullText.length} chars)`
+              );
+              res.write(
+                `data: ${JSON.stringify({ type: "done", fullText })}\n\n`
+              );
+              res.end();
+            }
+          } catch (e) {
+            // Skip invalid JSON lines
+          }
+        }
+      });
+
+      response.data.on("error", (error) => {
+        console.log(`❌ Ollama stream error: ${error.message}`);
+        res.write(
+          `data: ${JSON.stringify({ type: "error", error: error.message })}\n\n`
+        );
+        res.end();
+      });
     } catch (error) {
       console.log(`❌ Ollama error: ${error.message}`);
       throw new Error(`Ollama error: ${error.message}`);
@@ -61,31 +111,93 @@ class AIService {
   }
 
   /**
-   * Get explanation using Gemini
+   * Get explanation using Gemini with streaming
    */
-  async explainWithGemini(prompt) {
+  async explainWithGeminiStream(prompt, res) {
     try {
       if (!this.geminiApiKey) {
         throw new Error("Gemini API key not configured");
       }
 
-      console.log(`✨ Using Gemini (model: ${this.geminiModel})...`);
+      console.log(
+        `✨ Using Gemini with streaming (model: ${this.geminiModel})...`
+      );
       const genAI = new GoogleGenerativeAI(this.geminiApiKey);
       const model = genAI.getGenerativeModel({ model: this.geminiModel });
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
+      // Set headers for SSE
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
 
-      console.log(`✅ Gemini response received (${text.length} chars)`);
-      return {
-        success: true,
-        provider: "gemini",
-        text: text,
-      };
+      // Send provider info
+      res.write(
+        `data: ${JSON.stringify({ type: "provider", provider: "gemini" })}\n\n`
+      );
+
+      const result = await model.generateContentStream(prompt);
+      let fullText = "";
+
+      for await (const chunk of result.stream) {
+        const chunkText = chunk.text();
+        fullText += chunkText;
+        res.write(
+          `data: ${JSON.stringify({ type: "chunk", text: chunkText })}\n\n`
+        );
+      }
+
+      console.log(`✅ Gemini streaming complete (${fullText.length} chars)`);
+      res.write(`data: ${JSON.stringify({ type: "done", fullText })}\n\n`);
+      res.end();
     } catch (error) {
       console.log(`❌ Gemini error: ${error.message}`);
       throw new Error(`Gemini error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Stream explanation with fallback logic
+   */
+  async streamExplain(prompt, res) {
+    console.log(
+      `🤖 AI streaming request received (prompt: ${prompt.substring(
+        0,
+        100
+      )}...)`
+    );
+
+    // Try Ollama first
+    const ollamaAvailable = await this.isOllamaAvailable();
+
+    if (ollamaAvailable) {
+      try {
+        await this.explainWithOllamaStream(prompt, res);
+        this.currentProvider = "ollama";
+        return;
+      } catch (error) {
+        console.log(
+          `⚠️ Ollama streaming failed, falling back to Gemini: ${error.message}`
+        );
+      }
+    } else {
+      console.log(`⚠️ Ollama unavailable, trying Gemini streaming...`);
+    }
+
+    // Fallback to Gemini
+    try {
+      await this.explainWithGeminiStream(prompt, res);
+      this.currentProvider = "gemini";
+    } catch (error) {
+      console.log(`❌ Both AI providers failed for streaming`);
+      res.write(
+        `data: ${JSON.stringify({
+          type: "error",
+          error: `Both AI providers failed. Ollama: ${
+            ollamaAvailable ? "available but errored" : "unavailable"
+          }, Gemini: ${error.message}`,
+        })}\n\n`
+      );
+      res.end();
     }
   }
 
@@ -131,9 +243,9 @@ class AIService {
   }
 
   /**
-   * Explain a specific AST node
+   * Explain a specific AST node (streaming)
    */
-  async explainNode(node, context = "") {
+  async explainNodeStream(node, context, res) {
     const prompt = `You are a compiler expert. Explain this Abstract Syntax Tree (AST) node in simple terms:
 
 Node Type: ${node.type}
@@ -150,35 +262,13 @@ Provide:
 
 Keep it concise and educational.`;
 
-    return await this.explain(prompt);
+    return await this.streamExplain(prompt, res);
   }
 
   /**
-   * Detect and suggest fixes for syntax errors
+   * Explain grammar simplification (streaming)
    */
-  async detectErrors(code, error) {
-    const prompt = `You are a syntax error detector. Analyze this code and error:
-
-Code:
-${code}
-
-Error: ${error}
-
-Provide:
-1. What caused the syntax error
-2. The grammar rule being violated
-3. A specific fix suggestion
-4. The corrected code
-
-Be concise and educational.`;
-
-    return await this.explain(prompt);
-  }
-
-  /**
-   * Explain grammar simplification
-   */
-  async explainGrammar(grammarRules, code) {
+  async explainGrammarStream(grammarRules, code, res) {
     const prompt = `Explain the following context-free grammar rules used in this code:
 
 Grammar Rules:
@@ -195,7 +285,29 @@ Provide:
 
 Keep it educational and concise.`;
 
-    return await this.explain(prompt);
+    return await this.streamExplain(prompt, res);
+  }
+
+  /**
+   * Detect and suggest fixes for syntax errors (streaming)
+   */
+  async detectErrorsStream(code, error, res) {
+    const prompt = `You are a syntax error detector. Analyze this code and error:
+
+Code:
+${code}
+
+Error: ${error}
+
+Provide:
+1. What caused the syntax error
+2. The grammar rule being violated
+3. A specific fix suggestion
+4. The corrected code
+
+Be concise and educational.`;
+
+    return await this.streamExplain(prompt, res);
   }
 
   /**

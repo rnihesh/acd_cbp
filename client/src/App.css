@@ -22,6 +22,15 @@
   stroke-width: 2px;
 }
 
+/* Prevent layout shifts during streaming */
+* {
+  will-change: auto;
+}
+
+.prose {
+  contain: layout style;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;
@@ -47,4 +56,11 @@
 
 .dark ::-webkit-scrollbar-thumb:hover {
   background: #64748b;
+}
+
+/* Smooth transitions */
+.transition-colors {
+  transition-property: color, background-color, border-color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
 }

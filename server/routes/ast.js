@@ -59,7 +59,7 @@ router.post("/parse", (req, res) => {
 
 /**
  * POST /api/explain-node
- * Get AI explanation for a specific AST node
+ * Get AI explanation for a specific AST node (streaming)
  */
 router.post("/explain-node", async (req, res) => {
   try {
@@ -69,25 +69,26 @@ router.post("/explain-node", async (req, res) => {
       return res.status(400).json({ error: "Node is required" });
     }
 
-    console.log(`🤖 AI: Explaining node type: ${node.type || "unknown"}`);
-    const explanation = await aiService.explainNode(node, context);
     console.log(
-      `✅ AI explanation complete (provider: ${explanation.provider})`
+      `🤖 AI: Explaining node - Full object:`,
+      JSON.stringify(node, null, 2)
     );
-
-    res.json(explanation);
+    console.log(`🤖 AI: Node type: ${node.type || "undefined"} (streaming)`);
+    await aiService.explainNodeStream(node, context, res);
   } catch (error) {
     console.log(`❌ AI explain-node error: ${error.message}`);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
   }
 });
 
 /**
  * POST /api/explain-grammar
- * Get AI explanation for grammar rules
+ * Get AI explanation for grammar rules (streaming)
  */
 router.post("/explain-grammar", async (req, res) => {
   try {
@@ -97,25 +98,24 @@ router.post("/explain-grammar", async (req, res) => {
       return res.status(400).json({ error: "Grammar rules array is required" });
     }
 
-    console.log(`🤖 AI: Explaining ${grammarRules.length} grammar rules`);
-    const explanation = await aiService.explainGrammar(grammarRules, code);
     console.log(
-      `✅ AI grammar explanation complete (provider: ${explanation.provider})`
+      `🤖 AI: Explaining ${grammarRules.length} grammar rules (streaming)`
     );
-
-    res.json(explanation);
+    await aiService.explainGrammarStream(grammarRules, code, res);
   } catch (error) {
     console.log(`❌ AI explain-grammar error: ${error.message}`);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
   }
 });
 
 /**
  * POST /api/detect-errors
- * Detect and suggest fixes for syntax errors
+ * Detect and suggest fixes for syntax errors (streaming)
  */
 router.post("/detect-errors", async (req, res) => {
   try {
@@ -127,19 +127,16 @@ router.post("/detect-errors", async (req, res) => {
         .json({ error: "Code and error message are required" });
     }
 
-    console.log(`🤖 AI: Detecting errors in code`);
-    const explanation = await aiService.detectErrors(code, error);
-    console.log(
-      `✅ AI error detection complete (provider: ${explanation.provider})`
-    );
-
-    res.json(explanation);
+    console.log(`🤖 AI: Detecting errors in code (streaming)`);
+    await aiService.detectErrorsStream(code, error, res);
   } catch (error) {
     console.log(`❌ AI detect-errors error: ${error.message}`);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
   }
 });
 
