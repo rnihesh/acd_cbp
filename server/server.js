@@ -27,6 +27,11 @@ app.use((req, res, next) => {
   next();
 });
 
+// GET for / health check and show running api
+app.get("/", (req, res) => {
+  res.json({ message: "Welcome to the AI-Based Syntax Tree Visualizer API" });
+});
+
 // Routes
 app.use("/api", astRoutes);
 
